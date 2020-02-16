@@ -1,12 +1,12 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 # CONFIGURATION
 LOCATION=0
 YOFFSET=0
 XOFFSET=0
-WIDTH=12
+WIDTH=24
 WIDTH_WIDE=24
-THEME=solarized
+THEME=material
 
 # Color Settings of Icon shown in Polybar
 COLOR_DISCONNECTED='#000'       # Device Disconnected
@@ -19,13 +19,13 @@ COLOR_BATTERY_50='#666'         # Battery >= 50
 COLOR_BATTERY_LOW='#f00'        # Battery <  50
 
 # Icons shown in Polybar
-ICON_SMARTPHONE=''
-ICON_TABLET=''
+ICON_SMARTPHONE='  '
+ICON_TABLET='  '
 SEPERATOR='|'
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-show_devices (){
+show_devices () {
     IFS=$','
     devices=""
     for device in $(qdbus --literal org.kde.kdeconnect /modules/kdeconnect org.kde.kdeconnect.daemon.devices); do
@@ -56,19 +56,64 @@ show_devices (){
     echo "${devices::-1}"
 }
 
+#used to interact with notifications if they are avalable
+Notification_menu () {
+    replyable=`qdbus org.kde.kdeconnect /modules/kdeconnect/devices/$2/notifications/$1 org.kde.kdeconnect.device.notifications.notification.replyId`
+    echo $replyable
+    options=$(printf "View\\nDissmiss")
+    if [ "$replyable" ]; then
+        options+=$(printf "\\nReply")
+        optionNum=$((optionNum+1))
+    fi
+    ticker1=`qdbus org.kde.kdeconnect /modules/kdeconnect/devices/$2/notifications/$1 org.kde.kdeconnect.device.notifications.notification.ticker`
+    prompt=$(echo $ticker1 | cut -c 1-100)
+    menu=$(echo $options | dmenu -i -p "$prompt" -l $optionNum )
+    case "$menu" in
+        *'View' )
+            ticker1=`qdbus org.kde.kdeconnect /modules/kdeconnect/devices/$2/notifications/$1 org.kde.kdeconnect.device.notifications.notification.ticker`
+            notify-send "$ticker1";;
+        *'Dissmiss')
+            qdbus org.kde.kdeconnect /modules/kdeconnect/devices/$2/notifications/$1 org.kde.kdeconnect.device.notifications.notification.dismiss;;
+        *'Reply' )
+            qdbus org.kde.kdeconnect /modules/kdeconnect/devices/$2/notifications/$1 org.kde.kdeconnect.device.notifications.notification.reply;;
+    esac
+}
+
 show_menu () {
-    menu="$(rofi -sep "|" -dmenu -i -p "$DEV_NAME" -location $LOCATION -yoffset $YOFFSET -xoffset $XOFFSET -theme $THEME -width $WIDTH -hide-scrollbar -line-padding 4 -padding 20 -lines 5 <<< "Battery: $DEV_BATTERY%|Ping|Find Device|Send File|Browse Files|Unpair")"
-                case "$menu" in
-                    *Ping) qdbus org.kde.kdeconnect "/modules/kdeconnect/devices/$DEV_ID/ping" org.kde.kdeconnect.device.ping.sendPing ;;
-                    *'Find Device') qdbus org.kde.kdeconnect "/modules/kdeconnect/devices/$DEV_ID/findmyphone" org.kde.kdeconnect.device.findmyphone.ring ;;
-                    *'Send File') qdbus org.kde.kdeconnect "/modules/kdeconnect/devices/$DEV_ID/share" org.kde.kdeconnect.device.share.shareUrl "file://$(zenity --file-selection)" ;;
-                    *'Browse Files')
+	optionNum=6
+	options=$(echo "Battery: $DEV_BATTERY%|Ping|Find Device|Send File|Browse Files|Send SMS|Unpair")
+#	notification1=`dbus-send --session --print-reply --dest="org.kde.kdeconnect" /modules/kdeconnect/devices/$DEV_ID org.kde.kdeconnect.device.notifications.activeNotifications|tr '\n' ' ' | awk '{print $12}'| sed s/\"//g`
+#	if [ $notification1 ]; then
+#		options+=$(printf "\\nNotification")
+#		optionNum=$((optionNum+1))
+#	fi
+#	options+=$(printf "|Refresh")
+	menu="$(echo $options | rofi -sep "|" -dmenu -i -p "$DEV_NAME" -location $LOCATION -yoffset $YOFFSET -xoffset $XOFFSET -theme $THEME -width $WIDTH -hide-scrollbar -line-padding 4 -padding 20 -lines $optionNum)"
+	case "$menu" in
+        	*'Ping')
+			message=$(echo " " | rofi sep "|" -dmenu -i -p "Message for ping")    
+			kdeconnect-cli --ping-msg "$message" -d $DEV_ID ;;
+        	*'Find Device') 
+			kdeconnect-cli --ring -d $DEV_ID ;;
+               	*'Send File') qdbus org.kde.kdeconnect "/modules/kdeconnect/devices/$DEV_ID/share" org.kde.kdeconnect.device.share.shareUrl "file://$(zenity --file-selection)" ;;
+                *'Browse Files')
                         if "$(qdbus --literal org.kde.kdeconnect "/modules/kdeconnect/devices/$DEV_ID/sftp" org.kde.kdeconnect.device.sftp.isMounted)" == "false"; then
                             qdbus org.kde.kdeconnect "/modules/kdeconnect/devices/$DEV_ID/sftp" org.kde.kdeconnect.device.sftp.mount
                         fi
-                        qdbus org.kde.kdeconnect "/modules/kdeconnect/devices/$DEV_ID/sftp" org.kde.kdeconnect.device.sftp.startBrowsing
-                        ;;
-                    *'Unpair' ) qdbus org.kde.kdeconnect "/modules/kdeconnect/devices/$DEV_ID" org.kde.kdeconnect.device.unpair
+                        qdbus org.kde.kdeconnect "/modules/kdeconnect/devices/$DEV_ID/sftp" org.kde.kdeconnect.device.sftp.startBrowsing;;
+	        *'Send SMS' )
+			message=$(echo "a sair |chego daqui a 25-30 |ok" | rofi -sep "|" -dmenu -i -p "Msg to send")
+			if test -f "$HOME/Scripts/.contacts.txt"; then
+				recipient=$(cat ~/Scripts/.contacts.txt | rofi -sep "|" -dmenu -i -p "Recipient's phone #" | awk -F: '{print $2}')
+			else
+				recipient=$(echo "" | rofi -sep "|" -dmenu -i -p "Recipient's phone #" | awk -F: '{print $2}')
+			fi
+			kdeconnect-cli --send-sms "$message" --destination "$recipient" -d $DEV_ID ;;
+#		*'Refresh' )
+#	             	kdeconnect-cli --refresh;;
+#		*'Notification' )
+#			Notification_menu $notification1 $DEV_ID;;
+#              *'Unpair' ) qdbus org.kde.kdeconnect "/modules/kdeconnect/devices/$DEV_ID" org.kde.kdeconnect.device.unpair
                 esac
 }
 
