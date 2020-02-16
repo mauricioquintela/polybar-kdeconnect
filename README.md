@@ -14,6 +14,7 @@ Demo with [Material Theme](https://github.com/DaveDavenport/rofi-themes/blob/mas
 * Iosevka Nerd Font
 * [Zenity](https://github.com/GNOME/zenity)
 * qt5tools
+* kdeconnect-cli
 
 ## Usage
 Place the given script in some folder, and use it in your polybar `config` as
@@ -41,9 +42,5 @@ Color | Meaning |
 
 
 ## Changelog
-### v2
-* Supports Multiple Devices without extra configuration
-* Supports pairing/unpairing devices
-* Removed `kdeconnect-cli` as dependency
-* Combined seperate files into one
-* Seperate icons for tablets and smartphone
+### v2.1
+* SMS support with contact list
