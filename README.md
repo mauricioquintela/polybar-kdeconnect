@@ -13,6 +13,7 @@ Demo with [Material Theme](https://github.com/DaveDavenport/rofi-themes/blob/mas
 * [kdeconnect](https://github.com/KDE/kdeconnect-kde)
 * Iosevka Nerd Font
 * [Zenity](https://github.com/GNOME/zenity)
+* Thunar - can be changed for any file manager in the shell script
 * qt5tools
 * kdeconnect-cli
 
